@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Adlyn Atelier</title>
+    <style>
+        :root { --primary-blue: #0056b3; --clean-white: #ffffff; --light-bg: #f8f9fa; }
+        body { font-family: Arial, sans-serif; margin: 0; background-color: var(--light-bg); color: #333; }
+        header { background-color: var(--clean-white); border-bottom: 2px solid var(--primary-blue); padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; }
+        .logo { font-size: 1.8rem; font-weight: bold; color: var(--primary-blue); }
+        .container { max-width: 1000px; margin: 2rem auto; padding: 0 1rem; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1.5rem; }
+        .card { background: var(--clean-white); padding: 1rem; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); text-align: center; }
+        .card button { background: var(--primary-blue); color: var(--clean-white); border: none; padding: 0.6rem 1.2rem; border-radius: 4px; cursor: pointer; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="logo">Adlyn Atelier</div>
+        <nav><strong>Apparel | Kids Thrift | Detergent</strong></nav>
+    </header>
+    <div class="container">
+        <h2>Featured Catalog</h2>
+        <div id="product-grid" class="grid"></div>
+    </div>
+
+    <script>
+        async function initiatePayment(amount, productName) {
+            const rawPhone = prompt(`Enter M-Pesa Phone Number to purchase ${productName} (Format: 07XXXXXXXX or 2547XXXXXXXX):`);
+            if (!rawPhone) return;
+
+            // Auto-format phone number to 254 format required by M-Pesa
+            let phone = rawPhone.trim();
+            if (phone.startsWith('0')) {
+                phone = '254' + phone.slice(1);
+            }
+
+            try {
+                const response = await fetch('/api/stkpush', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ phone: phone, amount: amount })
+                });
+                const data = await response.json();
+
+                if (data.ResponseCode === "0") {
+                    alert("STK Push sent! Please check your phone and enter your M-Pesa PIN.");
+                } else {
+                    alert("Payment initiation failed. Please check phone format and try again.");
+                }
+            } catch (error) {
+                console.error("Payment error:", error);
+                alert("An error occurred connecting to the server.");
+            }
+        }
+
+        async function fetchProducts() {
+            const res = await fetch('/api/products');
+            const products = await res.json();
+            const grid = document.getElementById('product-grid');
+            grid.innerHTML = products.map(p => `
+                <div class="card">
+                    <h3>${p.name}</h3>
+                    <p>Category: ${p.category}</p>
+                    <p><strong>KSh ${p.price}</strong></p>
+                    <button onclick="initiatePayment(${p.price}, '${p.name}')">Pay via M-Pesa</button>
+                </div>
+            `).join('');
+        }
+        fetchProducts();
+    </script>
+</body>
+</html>
