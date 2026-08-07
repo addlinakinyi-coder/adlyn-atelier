@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Adlyn Atelier | Official Store</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+    <header class="navbar">
+        <div class="logo-container">
+            <img src="{{ url_for('static', filename='images/logo.png') }}" alt="Adlyn Atelier Logo" class="logo">
+        </div>
+        <nav>
+            <a href="#catalog">Catalog</a>
+            <a href="#about">About</a>
+            <a href="#contact">Contact</a>
+        </nav>
+    </header>
+
+    <section class="hero">
+        <h1>ADLYN ATELIER</h1>
+        <p>Apparel • Kids Thrift • Premium Detergents</p>
+        <a href="#catalog" class="cta-button">Shop Collections</a>
+    </section>
+
+    <main id="catalog" class="container">
+        <h2>Featured Offerings</h2>
+        <div class="product-grid">
+            {% for product in products %}
+            <div class="card">
+                <h3>{{ product.name }}</h3>
+                <span class="category">{{ product.category }}</span>
+                <p class="price">KSh {{ product.price }}</p>
+                <button class="buy-btn" onclick="triggerPayment('{{ product.price }}')">Buy with M-Pesa</button>
+            </div>
+            {% endfor %}
+        </div>
+    </main>
+
+    <script>
+        async function triggerPayment(amount) {
+            const phone = prompt("Enter your Safaricom M-Pesa number (Format: 2547XXXXXXXX):");
+            if (!phone) return;
+
+            const response = await fetch('/api/stkpush', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ phone: phone, amount: amount })
+            });
+
+            const result = await response.json();
+            if (result.ResponseCode === "0") {
+                alert("STK Push sent! Please enter your PIN on your phone to complete payment.");
+            } else {
+                alert("Error initiating payment. Please try again.");
+            }
+        }
+    </script>
+</body>
+</html>
