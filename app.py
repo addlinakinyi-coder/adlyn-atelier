@@ -1,38 +1,66 @@
-import base64
-from datetime import datetime
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, render_template, request, jsonify
 import requests
-import sqlite3
+from requests.auth import HTTPBasicAuth
+import datetime
+import base64
+import os
 
 app = Flask(__name__)
 
-# Safaricom M-Pesa Credentials (Sandbox defaults for testing)
-BUSINESS_SHORTCODE = "174379"
-PASSKEY = "bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919"
+# --- M-PESA DARAJA CONFIGURATION ---
+CONSUMER_KEY = os.getenv("MPESA_CONSUMER_KEY", "your_consumer_key")
+CONSUMER_SECRET = os.getenv("MPESA_CONSUMER_SECRET", "your_consumer_secret")
+BUSINESS_SHORTCODE = os.getenv("MPESA_SHORTCODE", "174379") # Sandbox Lipa na M-Pesa Online
+PASSKEY = os.getenv("MPESA_PASSKEY", "your_passkey")
+CALLBACK_URL = os.getenv("MPESA_CALLBACK_URL", "https://your-domain.com/api/callback")
 
-def get_db_connection():
-    conn = sqlite3.connect('database.db')
-    conn.row_factory = sqlite3.Row
-    return conn
+def get_mpesa_access_token():
+    api_url = "https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials"
+    r = requests.get(api_url, auth=HTTPBasicAuth(CONSUMER_KEY, CONSUMER_SECRET))
+    json_response = r.json()
+    return json_response.get("access_token")
+
+# --- ROUTES ---
 
 @app.route('/')
 def home():
-    return render_template('index.html')
-
-@app.route('/api/products', methods=['GET'])
-def get_products():
-    conn = get_db_connection()
-    products = conn.execute('SELECT * FROM products').fetchall()
-    conn.close()
-    return jsonify([dict(row) for row in products])
+    products = [
+        {"id": 1, "name": "Classic Apparel", "category": "Apparel", "price": 1500, "image": "apparel.jpg"},
+        {"id": 2, "name": "Kids Wear", "category": "Kids Thrift", "price": 800, "image": "kids.jpg"},
+        {"id": 3, "name": "Premium Detergent", "category": "Detergents", "price": 500, "image": "detergent.jpg"}
+    ]
+    return render_template('index.html', products=products)
 
 @app.route('/api/stkpush', methods=['POST'])
 def stk_push():
-    data = request.json
-    phone_number = data.get('phone')
+    data = request.get_json()
+    phone_number = data.get('phone') # Format: 2547XXXXXXXX
     amount = data.get('amount')
-    # Triggers STK Push logic
-    return jsonify({"ResponseCode": "0", "ResponseDescription": "Success"})
+
+    access_token = get_mpesa_access_token()
+    timestamp = datetime.datetime.now().strftime('%Y%m%d%H%M%S')
+    data_to_encode = BUSINESS_SHORTCODE + PASSKEY + timestamp
+    online_password = base64.b64encode(data_to_encode.encode()).decode('utf-8')
+
+    stk_url = "https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest"
+    headers = {"Authorization": f"Bearer {access_token}"}
+    
+    payload = {
+        "BusinessShortCode": BUSINESS_SHORTCODE,
+        "Password": online_password,
+        "Timestamp": timestamp,
+        "TransactionType": "CustomerPayBillOnline",
+        "Amount": amount,
+        "PartyA": phone_number,
+        "PartyB": BUSINESS_SHORTCODE,
+        "PhoneNumber": phone_number,
+        "CallBackURL": CALLBACK_URL,
+        "AccountReference": "AdlynAtelier",
+        "TransactionDesc": "Payment for goods"
+    }
+
+    response = requests.post(stk_url, json=payload, headers=headers)
+    return jsonify(response.json())
 
 if __name__ == '__main__':
     app.run(debug=True)
